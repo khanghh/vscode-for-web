@@ -2,25 +2,21 @@
 
 # Build script for VS Code Web
 
-set -e
+set -euo pipefail
 
-# Define VS Code version
-vscodeVersion="1.105.1"
+vscodeVersion="1.75.0"
 
 # Clone vscode if not exists
 if [ ! -d "vscode" ]; then
-    git clone --depth 1 https://github.com/microsoft/vscode.git --branch $vscodeVersion vscode 
+    git clone --depth 1 https://github.com/microsoft/vscode.git --branch $vscodeVersion vscode
 fi
 
 # Build vscode web version
 echo "Installing dependencies and building vscode web version..."
-cd vscode && npm install && npm run gulp vscode-web-min
+(cd vscode && yarn install --frozen-lockfile && yarn gulp vscode-web-min)
+
+# Copy built files to dist
+echo "Creating dist directory..."
+cp -r ./vscode-web ./dist && cp index.html ./dist/index.html
+
 echo "Build completed"
-
-# Build the custom extension
-# echo "Building remote source extension..."
-# cd ../remote-source-extension
-# npm install
-# npm run compile
-# cd ../vscode
-

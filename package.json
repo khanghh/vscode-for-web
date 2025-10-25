@@ -1,9 +1,18 @@
 {
-  "name": "vscode-web",
+  "name": "vscode-for-web",
   "version": "1.0.0",
-  "description": "Build web version of VS Code with remote source extension",
-  "scripts": {
-    "build": "./build.sh"
+  "description": "This project builds the web version of VS Code with a custom extension for loading remote source code.",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "scripts": {
+    "build": "./build.sh",
+    "start": "node server.js",
+    "clean": "rm -rf dist && rm -rf vscode-web && rm -rf vscode"
+  },
+  "author": "khanghh",
+  "homepage": "https://github.com/khanghh/vscode-web",
+  "license": "MIT"
 }

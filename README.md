@@ -1,4 +1,4 @@
-# VS Code Web Builder
+# VSCode For Web Builder
 
 This project builds the web version of VS Code with a custom extension for loading remote source code.
 
@@ -19,23 +19,19 @@ This project builds the web version of VS Code with a custom extension for loadi
    npm run build
    ```
 
-This will clone the VS Code source code (if not present) and build the web version using `gulp vscode-web-min`.
+This will clone the Visual Studo Code source code (if not present) and build the web version using `gulp vscode-web-min`.
 
-## Extension
+## Extensions
 
-The `remote-source-extension` provides a command to load source code from remote URLs.
-
-- Command: `Remote Source Loader: Load Remote Source`
-- Prompts for a URL, fetches the content, and opens it in a new editor tab with appropriate syntax highlighting.
+- The `host-filesystem-provider` extension (planned) will provide files and folders from a user-specified root directory on the server running VS Code Web to the workbench's file tree.
 
 ## Development
 
-- VS Code source is cloned into `vscode-source/`
-- Built web version will be in `vscode-source/vscode-web/`
-- Extension source is in `remote-source-extension/`
+- VS Code source is cloned into `vscode/`
+- Built web version will be in `dist`
+- Extension source is in `extensions/`
 
 ## Docker
 
-- Uses `node:22-bullseye` base image
-- Includes tools like tmux, vim, python, etc.
+- Uses `mcr.microsoft.com/devcontainers/typescript-node:16-bullseye` base image
 - Mounts the project directory to `/workdir`

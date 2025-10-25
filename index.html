@@ -1,70 +1,99 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src *; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ">
-    <title>VS Code Web</title>
-    <link rel="stylesheet" href="./out/vs/workbench/workbench.web.main.css" />
-  </head>
-  <body style="margin: 0; height: 100vh">
-    <div id="root" style="height: 100vh; width: 100vw"></div>
-    <script src="./out/nls.messages.js"></script>
-    <script src="./out/vs/loader.js"></script>
-    <script>
-      // Configure loader with base URL only
-      require.config({
-        baseUrl: window.location.origin + "/out",
-        colorScheme: "dark",
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="description"
+    content="VS Code for Web - A full-featured web-based code editor with remote source loading capabilities" />
+  <meta name="keywords" content="vscode, web editor, code editor, programming, development" />
+  <meta name="author" content="khanghh" />
+  <meta name="theme-color" content="#1e1e1e" />
+  <meta name="color-scheme" content="dark light" />
+
+  <!-- Favicon and icons -->
+  <link rel="icon" type="image/x-icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23007acc' d='M24 12L14.3 21.7L12.9 20.3L20.2 13H0V11H20.2L12.9 3.7L14.3 2.3L24 12Z'/></svg>" />
+
+  <title>VS Code for Web</title>
+
+  <!-- Load critical resources -->
+  <script src="/out/vs/loader.js"></script>
+  <script src="/out/vs/webPackagePaths.js"></script>
+  <script>
+    // Configure web package paths
+    Object.keys(self.webPackagePaths).map(function (key, index) {
+      self.webPackagePaths[key] = `${window.location.origin}/node_modules/${key}/${self.webPackagePaths[key]}`;
+    });
+
+    require.config({
+      baseUrl: `${window.location.origin}/out`,
+      recordStats: true,
+      trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
+        createScriptURL(value) {
+          return value;
+        }
+      }),
+      paths: self.webPackagePaths
+    });
+  </script>
+
+  <!-- Main CSS -->
+  <link data-name="vs/workbench/workbench.web.main" rel="stylesheet" href="/out/vs/workbench/workbench.web.main.css" />
+
+</head>
+
+<body style="margin: 0; height: 100vh; overflow: hidden;">
+  <!-- Main application container -->
+  <div id="root" style="height: 100vh; width: 100vw" role="main" aria-label="VS Code Editor"></div>
+  <script>
+    const messageChannel = new MessageChannel();
+    const messagePorts = new Map();
+    messagePorts.set("remotefs-provider", messageChannel.port2);
+
+    require(["vs/workbench/workbench.web.main"], (workbench) => {
+      workbench.create(document.getElementById("root"), {
+        productConfiguration: {
+          extensionEnabledApiProposals: {
+            "remote-fs": [
+              "fileSearchProvider",
+              "textSearchProvider",
+              "ipc",
+            ],
+          },
+          nameShort: "VS Code for Web",
+          nameLong: "Visual Studio Code for Web",
+          applicationName: "code-web",
+          dataFolderName: ".vscode-web",
+          version: "1.75.0",
+          extensionsGallery: {
+            serviceUrl: "https://open-vsx.org/vscode/gallery",
+            itemUrl: "https://open-vsx.org/vscode/item",
+            resourceUrlTemplate: "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
+          },
+        },
+        folderUri: {
+          scheme: "memfs",
+          path: "/",
+        },
+        initialColorTheme: {
+          themeType: "dark",
+        },
+        additionalBuiltinExtensions: [
+          {
+            scheme: window.location.protocol === "http:" ? "http" : "https",
+            authority: window.location.host,
+            path: "/extensions/remotefs-provider",
+          },
+        ],
+        messagePorts: messagePorts,
       });
+    });
 
-      const message = new MessageChannel();
-      const messagePorts = new Map();
-      messagePorts.set("remotefs", message.port2);
+    messageChannel.port1.onmessage = (event) => {
+      console.log("Message from extension:", event.data);
+    };
+  </script>
+</body>
 
-      require(["vs/workbench/workbench.web.main"], (workbench) => {
-        workbench.create(document.getElementById("root"), {
-          productConfiguration: {
-            extensionEnabledApiProposals: {
-              "druid.drd-fs": [
-                "fileSearchProvider",
-                "textSearchProvider",
-                "ipc",
-              ],
-            },
-            nameShort: "VSCode For Web",
-            nameLong: "VSCode For Web",
-            applicationName: "code-web",
-            dataFolderName: ".vscode-web",
-            extensionsGallery: {
-              serviceUrl: "https://open-vsx.org/vscode/gallery",
-              itemUrl: "https://open-vsx.org/vscode/item",
-              resourceUrlTemplate:
-                "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
-            },
-          },
-          folderUri: {
-            scheme: "memfs",
-            path: "/",
-          },
-
-          initialColorTheme: {
-            themeType: "dark",
-          },
-          additionalBuiltinExtensions: [
-            {
-              scheme: window.location.protocol === "http:" ? "http" : "https",
-              authority: window.location.host,
-              path: "/extensions/remote-filesystem-provider",
-            },
-            messagePorts,
-          ],
-        });
-      });
-
-      message.port1.onmessage = (event) => {
-        console.log("Message from extension:", event.data);
-      }
-    </script>
-  </body>
 </html>

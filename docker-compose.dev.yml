@@ -1,6 +1,6 @@
 services:
   dev:
-    image: vscode-dev
+    image: vscode-dev:node16
     container_name: vscode-dev
     build:
       context: .
