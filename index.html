@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src *; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ">
+    <title>VS Code Web</title>
+    <link rel="stylesheet" href="./out/vs/workbench/workbench.web.main.css" />
+  </head>
+  <body style="margin: 0; height: 100vh">
+    <div id="root" style="height: 100vh; width: 100vw"></div>
+    <script src="./out/nls.messages.js"></script>
+    <script src="./out/vs/loader.js"></script>
+    <script>
+      // Configure loader with base URL only
+      require.config({
+        baseUrl: window.location.origin + "/out",
+        colorScheme: "dark",
+      });
+
+      const message = new MessageChannel();
+      const messagePorts = new Map();
+      messagePorts.set("remotefs", message.port2);
+
+      require(["vs/workbench/workbench.web.main"], (workbench) => {
+        workbench.create(document.getElementById("root"), {
+          productConfiguration: {
+            extensionEnabledApiProposals: {
+              "druid.drd-fs": [
+                "fileSearchProvider",
+                "textSearchProvider",
+                "ipc",
+              ],
+            },
+            nameShort: "VSCode For Web",
+            nameLong: "VSCode For Web",
+            applicationName: "code-web",
+            dataFolderName: ".vscode-web",
+            extensionsGallery: {
+              serviceUrl: "https://open-vsx.org/vscode/gallery",
+              itemUrl: "https://open-vsx.org/vscode/item",
+              resourceUrlTemplate:
+                "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
+            },
+          },
+          folderUri: {
+            scheme: "memfs",
+            path: "/",
+          },
+
+          initialColorTheme: {
+            themeType: "dark",
+          },
+          additionalBuiltinExtensions: [
+            {
+              scheme: window.location.protocol === "http:" ? "http" : "https",
+              authority: window.location.host,
+              path: "/extensions/remote-filesystem-provider",
+            },
+            messagePorts,
+          ],
+        });
+      });
+
+      message.port1.onmessage = (event) => {
+        console.log("Message from extension:", event.data);
+      }
+    </script>
+  </body>
+</html>

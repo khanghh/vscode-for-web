@@ -1,0 +1,13 @@
+services:
+  dev:
+    image: vscode-dev
+    container_name: vscode-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    user: 1000:1000
+    volumes:
+      - .:/workdir
+    ports:
+      - 8080:8080
+    network_mode: bridge

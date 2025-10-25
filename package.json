@@ -1,0 +1,9 @@
+{
+  "name": "vscode-web",
+  "version": "1.0.0",
+  "description": "Build web version of VS Code with remote source extension",
+  "scripts": {
+    "build": "./build.sh"
+  },
+  "devDependencies": {}
+}
