@@ -4,340 +4,427 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	CancellationToken,
-	Disposable,
-	Event,
-	EventEmitter,
-	FileChangeEvent,
-	FileChangeType,
-	FileStat,
-	FileSystemError,
-	FileSystemProvider,
-	FileType,
-	Position,
-	Progress,
-	ProviderResult,
-	Range,
-	Uri,
-	workspace,
+  Disposable,
+  Event,
+  EventEmitter,
+  FileChangeEvent,
+  FileChangeType,
+  FileStat,
+  FileSystemError,
+  FileSystemProvider,
+  FileType,
+  Position,
+  Progress,
+  Range,
+  Uri,
+  CancellationToken,
+  ProviderResult,
+  workspace,
 } from 'vscode';
 import { largeTSFile, getImageFile, debuggableFile, windows1251File, gbkFile } from './exampleFiles';
-import { File, Directory, Entry } from './types';
+import {
+  FileSearchProvider,
+  FileSearchQuery,
+  FileSearchOptions,
+  TextSearchProvider,
+  TextSearchComplete,
+  TextSearchOptions,
+  TextSearchQuery,
+  TextSearchResult,
 
+} from './types';
+
+
+declare module 'vscode' {
+  namespace workspace {
+    /**
+     * Register a search provider.
+     *
+     * Only one provider can be registered per scheme.
+     *
+     * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+     * @param provider The provider.
+     * @return A {@link Disposable} that unregisters this provider when being disposed.
+     */
+    export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
+    /**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
+  }
+}
+
+
+export class File implements FileStat {
+
+  type: FileType;
+  ctime: number;
+  mtime: number;
+  size: number;
+
+  name: string;
+  data?: Uint8Array;
+
+  constructor(public uri: Uri, name: string) {
+    this.type = FileType.File;
+    this.ctime = Date.now();
+    this.mtime = Date.now();
+    this.size = 0;
+    this.name = name;
+  }
+}
+
+export class Directory implements FileStat {
+
+  type: FileType;
+  ctime: number;
+  mtime: number;
+  size: number;
+
+  name: string;
+  entries: Map<string, File | Directory>;
+
+  constructor(public uri: Uri, name: string) {
+    this.type = FileType.Directory;
+    this.ctime = Date.now();
+    this.mtime = Date.now();
+    this.size = 0;
+    this.name = name;
+    this.entries = new Map();
+  }
+}
+
+export type Entry = File | Directory;
 
 const textEncoder = new TextEncoder();
 
-export class MemFS implements FileSystemProvider, Disposable {
-	static scheme = 'memfs';
+export class MemFS implements FileSystemProvider, FileSearchProvider, TextSearchProvider, Disposable {
+  static scheme = 'memfs';
 
-	private readonly disposable: Disposable;
+  private readonly disposable: Disposable;
 
-	constructor() {
-		this.disposable = Disposable.from(
-			workspace.registerFileSystemProvider(MemFS.scheme, this, { isCaseSensitive: true })
-		);
-	}
+  constructor() {
+    this.disposable = Disposable.from(
+      workspace.registerFileSystemProvider(MemFS.scheme, this, { isCaseSensitive: true }),
+      workspace.registerFileSearchProvider(MemFS.scheme, this),
+      workspace.registerTextSearchProvider(MemFS.scheme, this),
+    );
+  }
 
-	dispose() {
-		this.disposable?.dispose();
-	}
+  provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]> {
+    return [];
+  }
 
-	seed() {
-		this.createDirectory(Uri.parse(`memfs:/sample-folder/`));
+  provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete> {
+    return;
+  }
 
-		// most common files types
-		this.writeFile(Uri.parse(`memfs:/sample-folder/large.ts`), textEncoder.encode(largeTSFile), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.txt`), textEncoder.encode('foo'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.html`), textEncoder.encode('<html><body><h1 class="hd">Hello</h1></body></html>'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.js`), textEncoder.encode('console.log("JavaScript")'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.json`), textEncoder.encode('{ "json": true }'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.ts`), textEncoder.encode('console.log("TypeScript")'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.css`), textEncoder.encode('* { color: green; }'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.md`), textEncoder.encode(debuggableFile), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.xml`), textEncoder.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.py`), textEncoder.encode('import base64, sys; base64.decode(open(sys.argv[1], "rb"), open(sys.argv[2], "wb"))'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.yaml`), textEncoder.encode('- just: write something'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.jpg`), getImageFile(), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.php`), textEncoder.encode('<?php echo "Hello World!"; ?>'), { create: true, overwrite: true });
+  dispose() {
+    this.disposable?.dispose();
+  }
 
-		// some more files & folders
-		this.createDirectory(Uri.parse(`memfs:/sample-folder/folder/`));
-		this.createDirectory(Uri.parse(`memfs:/sample-folder/workspaces/`));
-		this.createDirectory(Uri.parse(`memfs:/sample-folder/large/`));
-		this.createDirectory(Uri.parse(`memfs:/sample-folder/xyz/`));
-		this.createDirectory(Uri.parse(`memfs:/sample-folder/xyz/abc`));
-		this.createDirectory(Uri.parse(`memfs:/sample-folder/xyz/def`));
+  seed() {
+    this.createDirectory(Uri.parse(`memfs:/sample-folder/`));
 
-		this.writeFile(Uri.parse(`memfs:/sample-folder/folder/empty.txt`), new Uint8Array(0), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/folder/empty.foo`), new Uint8Array(0), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/folder/file.ts`), textEncoder.encode('let a:number = true; console.log(a);'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/large/rnd.foo`), randomData(50000), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/UPPER.txt`), textEncoder.encode('UPPER'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/upper.txt`), textEncoder.encode('upper'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/def/foo.md`), textEncoder.encode('*MemFS*'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/workspaces/mem.code-workspace`), textEncoder.encode(JSON.stringify({
-			"folders": [
-				{
-					"name": "sample-folder-large",
-					"uri": "memfs:/sample-folder/large"
-				},
-				{
-					"name": "sample-folder-xyz",
-					"uri": "memfs:/sample-folder/xyz"
-				},
-				{
-					"name": "sample-folder-folder",
-					"uri": "memfs:/sample-folder/folder"
-				}
-			]
-		}, undefined, '\t')), { create: true, overwrite: true });
+    // most common files types
+    this.writeFile(Uri.parse(`memfs:/sample-folder/large.ts`), textEncoder.encode(largeTSFile), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.txt`), textEncoder.encode('foo'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.html`), textEncoder.encode('<html><body><h1 class="hd">Hello</h1></body></html>'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.js`), textEncoder.encode('console.log("JavaScript")'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.json`), textEncoder.encode('{ "json": true }'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.ts`), textEncoder.encode('console.log("TypeScript")'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.css`), textEncoder.encode('* { color: green; }'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.md`), textEncoder.encode(debuggableFile), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.xml`), textEncoder.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.py`), textEncoder.encode('import base64, sys; base64.decode(open(sys.argv[1], "rb"), open(sys.argv[2], "wb"))'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.yaml`), textEncoder.encode('- just: write something'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.jpg`), getImageFile(), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/file.php`), textEncoder.encode('<?php echo "Hello World!"; ?>'), { create: true, overwrite: true });
 
-		// some files in different encodings
-		this.createDirectory(Uri.parse(`memfs:/sample-folder/encodings/`));
-		this.writeFile(
-			Uri.parse(`memfs:/sample-folder/encodings/windows1251.txt`),
-			windows1251File,
-			{ create: true, overwrite: true }
-		);
-		this.writeFile(
-			Uri.parse(`memfs:/sample-folder/encodings/gbk.txt`),
-			gbkFile,
-			{ create: true, overwrite: true }
-		);
-	}
+    // some more files & folders
+    this.createDirectory(Uri.parse(`memfs:/sample-folder/folder/`));
+    this.createDirectory(Uri.parse(`memfs:/sample-folder/workspaces/`));
+    this.createDirectory(Uri.parse(`memfs:/sample-folder/large/`));
+    this.createDirectory(Uri.parse(`memfs:/sample-folder/xyz/`));
+    this.createDirectory(Uri.parse(`memfs:/sample-folder/xyz/abc`));
+    this.createDirectory(Uri.parse(`memfs:/sample-folder/xyz/def`));
 
-	root = new Directory(Uri.parse('memfs:/'), '');
+    this.writeFile(Uri.parse(`memfs:/sample-folder/folder/empty.txt`), new Uint8Array(0), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/folder/empty.foo`), new Uint8Array(0), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/folder/file.ts`), textEncoder.encode('let a:number = true; console.log(a);'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/large/rnd.foo`), randomData(50000), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/UPPER.txt`), textEncoder.encode('UPPER'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/upper.txt`), textEncoder.encode('upper'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/def/foo.md`), textEncoder.encode('*MemFS*'), { create: true, overwrite: true });
+    this.writeFile(Uri.parse(`memfs:/sample-folder/workspaces/mem.code-workspace`), textEncoder.encode(JSON.stringify({
+      "folders": [
+        {
+          "name": "sample-folder-large",
+          "uri": "memfs:/sample-folder/large"
+        },
+        {
+          "name": "sample-folder-xyz",
+          "uri": "memfs:/sample-folder/xyz"
+        },
+        {
+          "name": "sample-folder-folder",
+          "uri": "memfs:/sample-folder/folder"
+        }
+      ]
+    }, undefined, '\t')), { create: true, overwrite: true });
 
-	// --- manage file metadata
+    // some files in different encodings
+    this.createDirectory(Uri.parse(`memfs:/sample-folder/encodings/`));
+    this.writeFile(
+      Uri.parse(`memfs:/sample-folder/encodings/windows1251.txt`),
+      windows1251File,
+      { create: true, overwrite: true }
+    );
+    this.writeFile(
+      Uri.parse(`memfs:/sample-folder/encodings/gbk.txt`),
+      gbkFile,
+      { create: true, overwrite: true }
+    );
+  }
 
-	stat(uri: Uri): FileStat {
-		return this._lookup(uri, false);
-	}
+  root = new Directory(Uri.parse('memfs:/'), '');
 
-	readDirectory(uri: Uri): [string, FileType][] {
-		const entry = this._lookupAsDirectory(uri, false);
-		let result: [string, FileType][] = [];
-		for (const [name, child] of entry.entries) {
-			result.push([name, child.type]);
-		}
-		return result;
-	}
+  // --- manage file metadata
 
-	// --- manage file contents
+  stat(uri: Uri): FileStat {
+    return this._lookup(uri, false);
+  }
 
-	readFile(uri: Uri): Uint8Array {
-		const data = this._lookupAsFile(uri, false).data;
-		if (data) {
-			return data;
-		}
-		throw FileSystemError.FileNotFound();
-	}
+  readDirectory(uri: Uri): [string, FileType][] {
+    const entry = this._lookupAsDirectory(uri, false);
+    let result: [string, FileType][] = [];
+    for (const [name, child] of entry.entries) {
+      result.push([name, child.type]);
+    }
+    return result;
+  }
 
-	writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void {
-		let basename = this._basename(uri.path);
-		let parent = this._lookupParentDirectory(uri);
-		let entry = parent.entries.get(basename);
-		if (entry instanceof Directory) {
-			throw FileSystemError.FileIsADirectory(uri);
-		}
-		if (!entry && !options.create) {
-			throw FileSystemError.FileNotFound(uri);
-		}
-		if (entry && options.create && !options.overwrite) {
-			throw FileSystemError.FileExists(uri);
-		}
-		if (!entry) {
-			entry = new File(uri, basename);
-			parent.entries.set(basename, entry);
-			this._fireSoon({ type: FileChangeType.Created, uri });
-		}
-		entry.mtime = Date.now();
-		entry.size = content.byteLength;
-		entry.data = content;
+  // --- manage file contents
 
-		this._fireSoon({ type: FileChangeType.Changed, uri });
-	}
+  readFile(uri: Uri): Uint8Array {
+    const data = this._lookupAsFile(uri, false).data;
+    if (data) {
+      return data;
+    }
+    throw FileSystemError.FileNotFound();
+  }
 
-	// --- manage files/folders
+  writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void {
+    let basename = this._basename(uri.path);
+    let parent = this._lookupParentDirectory(uri);
+    let entry = parent.entries.get(basename);
+    if (entry instanceof Directory) {
+      throw FileSystemError.FileIsADirectory(uri);
+    }
+    if (!entry && !options.create) {
+      throw FileSystemError.FileNotFound(uri);
+    }
+    if (entry && options.create && !options.overwrite) {
+      throw FileSystemError.FileExists(uri);
+    }
+    if (!entry) {
+      entry = new File(uri, basename);
+      parent.entries.set(basename, entry);
+      this._fireSoon({ type: FileChangeType.Created, uri });
+    }
+    entry.mtime = Date.now();
+    entry.size = content.byteLength;
+    entry.data = content;
 
-	rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): void {
-		if (!options.overwrite && this._lookup(newUri, true)) {
-			throw FileSystemError.FileExists(newUri);
-		}
+    this._fireSoon({ type: FileChangeType.Changed, uri });
+  }
 
-		let entry = this._lookup(oldUri, false);
-		let oldParent = this._lookupParentDirectory(oldUri);
+  // --- manage files/folders
 
-		let newParent = this._lookupParentDirectory(newUri);
-		let newName = this._basename(newUri.path);
+  rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): void {
+    if (!options.overwrite && this._lookup(newUri, true)) {
+      throw FileSystemError.FileExists(newUri);
+    }
 
-		oldParent.entries.delete(entry.name);
-		entry.name = newName;
-		newParent.entries.set(newName, entry);
+    let entry = this._lookup(oldUri, false);
+    let oldParent = this._lookupParentDirectory(oldUri);
 
-		this._fireSoon(
-			{ type: FileChangeType.Deleted, uri: oldUri },
-			{ type: FileChangeType.Created, uri: newUri }
-		);
-	}
+    let newParent = this._lookupParentDirectory(newUri);
+    let newName = this._basename(newUri.path);
 
-	delete(uri: Uri): void {
-		let dirname = uri.with({ path: this._dirname(uri.path) });
-		let basename = this._basename(uri.path);
-		let parent = this._lookupAsDirectory(dirname, false);
-		if (!parent.entries.has(basename)) {
-			throw FileSystemError.FileNotFound(uri);
-		}
-		parent.entries.delete(basename);
-		parent.mtime = Date.now();
-		parent.size -= 1;
-		this._fireSoon({ type: FileChangeType.Changed, uri: dirname }, { uri, type: FileChangeType.Deleted });
-	}
+    oldParent.entries.delete(entry.name);
+    entry.name = newName;
+    newParent.entries.set(newName, entry);
 
-	createDirectory(uri: Uri): void {
-		let basename = this._basename(uri.path);
-		let dirname = uri.with({ path: this._dirname(uri.path) });
-		let parent = this._lookupAsDirectory(dirname, false);
+    this._fireSoon(
+      { type: FileChangeType.Deleted, uri: oldUri },
+      { type: FileChangeType.Created, uri: newUri }
+    );
+  }
 
-		let entry = new Directory(uri, basename);
-		parent.entries.set(entry.name, entry);
-		parent.mtime = Date.now();
-		parent.size += 1;
-		this._fireSoon({ type: FileChangeType.Changed, uri: dirname }, { type: FileChangeType.Created, uri });
-	}
+  delete(uri: Uri): void {
+    let dirname = uri.with({ path: this._dirname(uri.path) });
+    let basename = this._basename(uri.path);
+    let parent = this._lookupAsDirectory(dirname, false);
+    if (!parent.entries.has(basename)) {
+      throw FileSystemError.FileNotFound(uri);
+    }
+    parent.entries.delete(basename);
+    parent.mtime = Date.now();
+    parent.size -= 1;
+    this._fireSoon({ type: FileChangeType.Changed, uri: dirname }, { uri, type: FileChangeType.Deleted });
+  }
 
-	// --- lookup
+  createDirectory(uri: Uri): void {
+    let basename = this._basename(uri.path);
+    let dirname = uri.with({ path: this._dirname(uri.path) });
+    let parent = this._lookupAsDirectory(dirname, false);
 
-	private _lookup(uri: Uri, silent: false): Entry;
-	private _lookup(uri: Uri, silent: boolean): Entry | undefined;
-	private _lookup(uri: Uri, silent: boolean): Entry | undefined {
-		let parts = uri.path.split('/');
-		let entry: Entry = this.root;
-		for (const part of parts) {
-			if (!part) {
-				continue;
-			}
-			let child: Entry | undefined;
-			if (entry instanceof Directory) {
-				child = entry.entries.get(part);
-			}
-			if (!child) {
-				if (!silent) {
-					throw FileSystemError.FileNotFound(uri);
-				} else {
-					return undefined;
-				}
-			}
-			entry = child;
-		}
-		return entry;
-	}
+    let entry = new Directory(uri, basename);
+    parent.entries.set(entry.name, entry);
+    parent.mtime = Date.now();
+    parent.size += 1;
+    this._fireSoon({ type: FileChangeType.Changed, uri: dirname }, { type: FileChangeType.Created, uri });
+  }
 
-	private _lookupAsDirectory(uri: Uri, silent: boolean): Directory {
-		let entry = this._lookup(uri, silent);
-		if (entry instanceof Directory) {
-			return entry;
-		}
-		throw FileSystemError.FileNotADirectory(uri);
-	}
+  // --- lookup
 
-	private _lookupAsFile(uri: Uri, silent: boolean): File {
-		let entry = this._lookup(uri, silent);
-		if (entry instanceof File) {
-			return entry;
-		}
-		throw FileSystemError.FileIsADirectory(uri);
-	}
+  private _lookup(uri: Uri, silent: false): Entry;
+  private _lookup(uri: Uri, silent: boolean): Entry | undefined;
+  private _lookup(uri: Uri, silent: boolean): Entry | undefined {
+    let parts = uri.path.split('/');
+    let entry: Entry = this.root;
+    for (const part of parts) {
+      if (!part) {
+        continue;
+      }
+      let child: Entry | undefined;
+      if (entry instanceof Directory) {
+        child = entry.entries.get(part);
+      }
+      if (!child) {
+        if (!silent) {
+          throw FileSystemError.FileNotFound(uri);
+        } else {
+          return undefined;
+        }
+      }
+      entry = child;
+    }
+    return entry;
+  }
 
-	private _lookupParentDirectory(uri: Uri): Directory {
-		const dirname = uri.with({ path: this._dirname(uri.path) });
-		return this._lookupAsDirectory(dirname, false);
-	}
+  private _lookupAsDirectory(uri: Uri, silent: boolean): Directory {
+    let entry = this._lookup(uri, silent);
+    if (entry instanceof Directory) {
+      return entry;
+    }
+    throw FileSystemError.FileNotADirectory(uri);
+  }
 
-	// --- manage file events
+  private _lookupAsFile(uri: Uri, silent: boolean): File {
+    let entry = this._lookup(uri, silent);
+    if (entry instanceof File) {
+      return entry;
+    }
+    throw FileSystemError.FileIsADirectory(uri);
+  }
 
-	private _emitter = new EventEmitter<FileChangeEvent[]>();
-	private _bufferedEvents: FileChangeEvent[] = [];
-	private _fireSoonHandle?: any;
+  private _lookupParentDirectory(uri: Uri): Directory {
+    const dirname = uri.with({ path: this._dirname(uri.path) });
+    return this._lookupAsDirectory(dirname, false);
+  }
 
-	readonly onDidChangeFile: Event<FileChangeEvent[]> = this._emitter.event;
+  // --- manage file events
 
-	watch(_resource: Uri): Disposable {
-		// ignore, fires for all changes...
-		return new Disposable(() => { });
-	}
+  private _emitter = new EventEmitter<FileChangeEvent[]>();
+  private _bufferedEvents: FileChangeEvent[] = [];
+  private _fireSoonHandle?: any;
 
-	private _fireSoon(...events: FileChangeEvent[]): void {
-		this._bufferedEvents.push(...events);
+  readonly onDidChangeFile: Event<FileChangeEvent[]> = this._emitter.event;
 
-		if (this._fireSoonHandle) {
-			clearTimeout(this._fireSoonHandle);
-		}
+  watch(_resource: Uri): Disposable {
+    // ignore, fires for all changes...
+    return new Disposable(() => { });
+  }
 
-		this._fireSoonHandle = setTimeout(() => {
-			this._emitter.fire(this._bufferedEvents);
-			this._bufferedEvents.length = 0;
-		}, 5);
-	}
+  private _fireSoon(...events: FileChangeEvent[]): void {
+    this._bufferedEvents.push(...events);
 
-	// --- path utils
+    if (this._fireSoonHandle) {
+      clearTimeout(this._fireSoonHandle);
+    }
 
-	private _basename(path: string): string {
-		path = this._rtrim(path, '/');
-		if (!path) {
-			return '';
-		}
+    this._fireSoonHandle = setTimeout(() => {
+      this._emitter.fire(this._bufferedEvents);
+      this._bufferedEvents.length = 0;
+    }, 5);
+  }
 
-		return path.substr(path.lastIndexOf('/') + 1);
-	}
+  // --- path utils
 
-	private _dirname(path: string): string {
-		path = this._rtrim(path, '/');
-		if (!path) {
-			return '/';
-		}
+  private _basename(path: string): string {
+    path = this._rtrim(path, '/');
+    if (!path) {
+      return '';
+    }
 
-		return path.substr(0, path.lastIndexOf('/'));
-	}
+    return path.substr(path.lastIndexOf('/') + 1);
+  }
 
-	private _rtrim(haystack: string, needle: string): string {
-		if (!haystack || !needle) {
-			return haystack;
-		}
+  private _dirname(path: string): string {
+    path = this._rtrim(path, '/');
+    if (!path) {
+      return '/';
+    }
 
-		const needleLen = needle.length,
-			haystackLen = haystack.length;
+    return path.substr(0, path.lastIndexOf('/'));
+  }
 
-		if (needleLen === 0 || haystackLen === 0) {
-			return haystack;
-		}
+  private _rtrim(haystack: string, needle: string): string {
+    if (!haystack || !needle) {
+      return haystack;
+    }
 
-		let offset = haystackLen,
-			idx = -1;
+    const needleLen = needle.length,
+      haystackLen = haystack.length;
 
-		while (true) {
-			idx = haystack.lastIndexOf(needle, offset - 1);
-			if (idx === -1 || idx + needleLen !== offset) {
-				break;
-			}
-			if (idx === 0) {
-				return '';
-			}
-			offset = idx;
-		}
+    if (needleLen === 0 || haystackLen === 0) {
+      return haystack;
+    }
 
-		return haystack.substring(0, offset);
-	}
+    let offset = haystackLen,
+      idx = -1;
+
+    while (true) {
+      idx = haystack.lastIndexOf(needle, offset - 1);
+      if (idx === -1 || idx + needleLen !== offset) {
+        break;
+      }
+      if (idx === 0) {
+        return '';
+      }
+      offset = idx;
+    }
+
+    return haystack.substring(0, offset);
+  }
 }
 
 function randomData(lineCnt: number, lineLen = 155): Uint8Array {
-	let lines: string[] = [];
-	for (let i = 0; i < lineCnt; i++) {
-		let line = '';
-		while (line.length < lineLen) {
-			line += Math.random().toString(2 + (i % 34)).substr(2);
-		}
-		lines.push(line.substr(0, lineLen));
-	}
-	return textEncoder.encode(lines.join('\n'));
+  let lines: string[] = [];
+  for (let i = 0; i < lineCnt; i++) {
+    let line = '';
+    while (line.length < lineLen) {
+      line += Math.random().toString(2 + (i % 34)).substr(2);
+    }
+    lines.push(line.substr(0, lineLen));
+  }
+  return textEncoder.encode(lines.join('\n'));
 }
