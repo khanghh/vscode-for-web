@@ -3,13 +3,13 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <meta name="description"
-    content="VS Code for Web - A full-featured web-based code editor with remote source loading capabilities" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+  <meta name="description" content="VS Code for Web - A full-featured web-based code editor with remote source loading capabilities" />
   <meta name="keywords" content="vscode, web editor, code editor, programming, development" />
   <meta name="author" content="khanghh" />
   <meta name="theme-color" content="#1e1e1e" />
   <meta name="color-scheme" content="dark light" />
+
 
   <!-- Favicon and icons -->
   <link rel="icon" type="image/x-icon"
@@ -49,16 +49,15 @@
   <script>
     const messageChannel = new MessageChannel();
     const messagePorts = new Map();
-    messagePorts.set("remotefs-provider", messageChannel.port2);
+    messagePorts.set("remotefs", messageChannel.port2);
 
     require(["vs/workbench/workbench.web.main"], (workbench) => {
       workbench.create(document.getElementById("root"), {
         productConfiguration: {
           extensionEnabledApiProposals: {
-            "remote-fs": [
+            "khanghh.remotefs": [
               "fileSearchProvider",
               "textSearchProvider",
-              "ipc",
             ],
           },
           nameShort: "VS Code for Web",
@@ -72,27 +71,29 @@
             resourceUrlTemplate: "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
           },
         },
-        folderUri: {
-          scheme: "memfs",
-          path: "/",
-        },
-        initialColorTheme: {
-          themeType: "dark",
-        },
         additionalBuiltinExtensions: [
-          {
+          workbench.URI.from({
             scheme: window.location.protocol === "http:" ? "http" : "https",
-            authority: window.location.host,
-            path: "/extensions/remotefs-provider",
-          },
+            path: "/extensions/remotefs",
+          })
         ],
+        workspaceProvider: {
+          workspace: {
+              folderUri: workbench.URI.from({
+                  path: "/sample-folder",
+                  scheme: "memfs"
+              })  
+          },
+          trusted: true
+        },
         messagePorts: messagePorts,
       });
+
+      messageChannel.port1.onmessage = (event) => {
+        console.log("Received message from remotefs extension:", event.data);
+      };
     });
 
-    messageChannel.port1.onmessage = (event) => {
-      console.log("Message from extension:", event.data);
-    };
   </script>
 </body>
 
