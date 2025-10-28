@@ -14,7 +14,7 @@ import (
 // FileInfo represents a file or directory entry returned in listings.
 type FileInfo struct {
 	Name         string    `json:"name"`
-	Type         string    `json:"type"` // "file" or "directory"
+	Type         FileType  `json:"type"`
 	Size         int64     `json:"size"`
 	LastModified time.Time `json:"lastModified"`
 }

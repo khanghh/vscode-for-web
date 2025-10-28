@@ -26,11 +26,8 @@ func SetupRoutes(router fiber.Router, lfs LocalFileService) error {
 	api := router.Group("/api/v1")
 	// File system
 	api.Get("/fs/*", fsHandler.Get)
-	api.Post("/fs/", fsHandler.Post)
 	api.Post("/fs/*", fsHandler.Post)
-	api.Put("/fs/", fsHandler.Put)
-	api.Put("/fs/*", fsHandler.Put)
-	api.Delete("/fs/", fsHandler.Delete)
+	api.Patch("/fs/*", fsHandler.Patch)
 	api.Delete("/fs/*", fsHandler.Delete)
 	return nil
 }
