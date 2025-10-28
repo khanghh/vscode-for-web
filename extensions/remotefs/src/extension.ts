@@ -13,27 +13,26 @@
 //
 
 import * as vscode from 'vscode';
-import { MemFS } from './memfs';
+import { RemoteFS } from './remotefs';
 
 declare const navigator: unknown;
 
 export function activate(context: vscode.ExtensionContext) {
 	if (typeof navigator === 'object') {	// do not run under node.js
-		const memFs = enableFs(context);
-		memFs.seed();
+		const remoteFs = enableFs(context);
 		enableProblems(context);
 		enableTasks();
 
-		vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
+		vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`remotefs:/`));
 	}
   context.messagePassingProtocol?.postMessage({ type: "ready" });
 }
 
-function enableFs(context: vscode.ExtensionContext): MemFS {
-	const memFs = new MemFS();
-	context.subscriptions.push(memFs);
+function enableFs(context: vscode.ExtensionContext): RemoteFS {
+	const remoteFs = new RemoteFS();
+	context.subscriptions.push(remoteFs);
 
-	return memFs;
+	return remoteFs;
 }
 
 function enableProblems(context: vscode.ExtensionContext): void {

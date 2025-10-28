@@ -12,7 +12,7 @@
   ],
   "private": true,
   "activationEvents": [
-    "onFileSystem:memfs",
+    "onFileSystem:remotefs",
     "onDebug"
   ],
   "browser": "./extension.js",
