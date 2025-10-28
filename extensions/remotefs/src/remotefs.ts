@@ -62,6 +62,7 @@ export class RemoteFS implements FileSystemProvider {
           xhr.setRequestHeader('Content-Type', 'application/json');
           xhr.send(body);
         } else {
+          xhr.setRequestHeader('Content-Type', 'application/octet-stream');
           xhr.send(body);
         }
       } else {
@@ -105,18 +106,24 @@ export class RemoteFS implements FileSystemProvider {
   async readFile(uri: Uri): Promise<Uint8Array> {
     const path = uri.path.substring(1);
     const url = `${this.baseUrl}/${path}`;
-    const response = await this.httpRequest('GET', url, undefined, 'arraybuffer');
+    const response = await this.httpRequest('GET', url, undefined, 'text');
     if (!response.ok) {
       throw this.mapError(response);
     }
-    const buffer = await response.arrayBuffer();
-    return new Uint8Array(buffer);
+    const base64 = await response.text();
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
   }
 
   async writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): Promise<void> {
     const path = uri.path.substring(1);
     const url = `${this.baseUrl}/${path}`;
-    const response = await this.httpRequest('PUT', url, content.buffer as ArrayBuffer);
+    const base64 = btoa(String.fromCharCode(...Array.from(content)));
+    const response = await this.httpRequest('PUT', url, base64);
     if (!response.ok) {
       throw this.mapError(response);
     }

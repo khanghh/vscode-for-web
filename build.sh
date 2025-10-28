@@ -13,7 +13,7 @@ fi
 
 # Build vscode web version
 echo "Installing dependencies and building vscode web version..."
-(cd vscode && yarn install --frozen-lockfile && yarn gulp vscode-web-min)
+(cd vscode && yarn install --frozen-lockfile && yarn gulp vscode-web)
 
 # Copy built files to dist
 echo "Creating dist directory..."
