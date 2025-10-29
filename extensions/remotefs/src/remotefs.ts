@@ -137,7 +137,7 @@ export class RemoteFS implements FileSystemProvider {
 
   async rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): Promise<void> {
     const oldPath = oldUri.path.substring(1);
-    const newName = newUri.path.split('/').pop()!;
+    const newName = newUri.path.substring(1);
     const url = `${this.baseUrl}/${oldPath}`;
     const response = await axios.patch(url, { newPath: newName, overwrite: options.overwrite }, {
       headers: { 'Content-Type': 'application/json' },

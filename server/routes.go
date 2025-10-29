@@ -17,7 +17,7 @@ type LocalFileService interface {
 	Delete(relPath string) error
 	DeleteRecursive(relPath string) error
 	MkdirAll(relPath string) error
-	RenameDir(oldRelPath, newRelPath string) error
+	Rename(oldRelPath, newRelPath string, overwrite bool) error
 	DetectMIMEType(relPath string) (string, error)
 }
 

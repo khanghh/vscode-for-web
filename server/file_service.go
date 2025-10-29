@@ -254,35 +254,38 @@ func (s *LocalFileServiceImpl) MkdirAll(rel string) error {
 	return os.MkdirAll(abs, 0o755)
 }
 
-// RenameDir renames a directory at rel to newName (sibling under same parent).
-func (s *LocalFileServiceImpl) RenameDir(rel string, newName string) error {
-	if strings.TrimSpace(newName) == "" {
+// RenameDir renames/moves a file or directory to newPath
+func (s *LocalFileServiceImpl) Rename(relPath string, newPath string, overwrite bool) error {
+	if strings.TrimSpace(newPath) == "" {
 		return ErrMissingNewName
 	}
-	abs, err := s.resolve(rel)
+
+	// Check if current path exists
+	absSrcPath, err := s.resolve(relPath)
 	if err != nil {
 		return err
 	}
-	fi, err := os.Stat(abs)
-	if err != nil {
+	if _, err := os.Stat(absSrcPath); err != nil {
 		if os.IsNotExist(err) {
 			return ErrNotFound
 		}
 		return err
 	}
-	if !fi.IsDir() {
-		return ErrNotDirectory
-	}
-	parent := filepath.Dir(abs)
-	dst := filepath.Join(parent, filepath.Clean(newName))
+
 	// Ensure destination remains within root
-	if _, err := s.resolve(filepath.Join(filepath.Dir(rel), newName)); err != nil {
+	absDstPath, err := s.resolve(newPath)
+	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(dst); err == nil {
-		return ErrAlreadyExists
+
+	// if overwrite is false, check existence and return error
+	if !overwrite {
+		if _, err := os.Stat(absDstPath); err == nil {
+			return ErrAlreadyExists
+		}
 	}
-	return os.Rename(abs, dst)
+
+	return os.Rename(absSrcPath, absDstPath)
 }
 
 // DetectMIME tries to infer MIME type by extension or content.

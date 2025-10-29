@@ -263,18 +263,19 @@ func (h *FSHandler) Put(ctx *fiber.Ctx) error {
 // PATCH /api/v1/fs/*path
 // - Rename file or directory with body {"name": <new_name>}
 func (h *FSHandler) Patch(c *fiber.Ctx) error {
-	rel := h.pathFromParam(c)
+	relPath := h.pathFromParam(c)
 	var body struct {
-		NewName string `json:"name"`
+		NewPath   string `json:"newPath"`
+		Overwrite bool   `json:"overwrite"`
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return badRequest(c, "invalid json")
 	}
-	if strings.TrimSpace(body.NewName) == "" {
-		return badRequest(c, "missing new name")
+	if strings.TrimSpace(body.NewPath) == "" {
+		return badRequest(c, "missing new path")
 	}
 	// Rename file or directory
-	if err := h.svc.RenameDir(rel, body.NewName); err != nil {
+	if err := h.svc.Rename(relPath, body.NewPath, body.Overwrite); err != nil {
 		return mapLocalFileServiceError(c, err)
 	}
 	return c.SendStatus(fiber.StatusOK)
