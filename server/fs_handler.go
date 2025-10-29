@@ -14,6 +14,21 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+var (
+	JSONErrFileExists = fiber.Map{
+		"error": "file is already exists",
+		"code":  "FILE_EXISTS",
+	}
+	JSONErrNoPermissions = fiber.Map{
+		"error": "permission denied",
+		"code":  "NO_PERMISSIONS",
+	}
+	JSONErrFileNotFound = fiber.Map{
+		"error": "file not found",
+		"code":  "FILE_NOT_FOUND",
+	}
+)
+
 type FileType int
 
 const (
@@ -32,7 +47,7 @@ func NewFSHandler(svc LocalFileService) *FSHandler {
 }
 
 // helper: parse wildcard path from route, normalize to relative (no leading slash)
-func (h *FSHandler) pathFromCtx(c *fiber.Ctx) string {
+func (h *FSHandler) pathFromParam(c *fiber.Ctx) string {
 	p := c.Params("*")
 	// if mounted at exact path without wildcard, fallback to empty
 	if p == "" || p == "/" {
@@ -51,7 +66,7 @@ func (h *FSHandler) pathFromCtx(c *fiber.Ctx) string {
 // - File: return raw content; when download=true, set Content-Disposition
 // - With stat=true: return JSON metadata for file or directory
 func (h *FSHandler) Get(c *fiber.Ctx) error {
-	rel := h.pathFromCtx(c)
+	rel := h.pathFromParam(c)
 	fi, err := h.svc.Stat(rel)
 	if err != nil {
 		return mapLocalFileServiceError(c, err)
@@ -119,11 +134,11 @@ func fileTypeOf(info fs.FileInfo) FileType {
 	return FileTypeFile
 }
 
-// POST /api/v1/fs/*path?create=<bool>&overwrite=<bool>
+// POST /api/v1/fs/*parent { path: <child_path>, type: "file"|"directory", "create": <bool>, "overwrite": <bool> }
 func (h *FSHandler) Post(ctx *fiber.Ctx) error {
-	rel := h.pathFromCtx(ctx)
-	overwrite := strings.EqualFold(ctx.Query("overwrite"), "true")
+	rel := h.pathFromParam(ctx)
 
+	// Check that target directory exists
 	st, err := h.svc.Stat(rel)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -135,20 +150,27 @@ func (h *FSHandler) Post(ctx *fiber.Ctx) error {
 		return badRequest(ctx, "target path is not a directory")
 	}
 
-	// Multipart upload -> upload files into directory
-
+	// Multipart upload -> handle file uploads into directory
 	ct := ctx.Get(fiber.HeaderContentType)
 	if strings.HasPrefix(ct, fiber.MIMEMultipartForm) {
-		return h.uploadFile(ctx, rel, overwrite)
+		return h.handleUploadFile(ctx, rel)
 	}
 
-	// Try to parse JSON body for folder creation
+	// handle create empty file or directory
 	var body struct {
-		Name string `json:"name"`
+		Path      string `json:"path"`
+		Type      string `json:"type"`
+		Overwrite bool   `json:"overwrite"`
 	}
-	// If body has a "name" field, create subfolder
-	if err := json.Unmarshal(ctx.Body(), &body); err == nil && strings.TrimSpace(body.Name) != "" {
-		return h.createSubFolder(ctx, rel, strings.TrimSpace(body.Name))
+	if err := json.Unmarshal(ctx.Body(), &body); err != nil {
+		return badRequest(ctx, "invalid request body")
+	}
+
+	switch body.Type {
+	case "directory":
+		return h.handleCreateDirectories(ctx, rel, body.Path)
+	case "file":
+		return h.handlerCreateFile(ctx, rel, body.Path, body.Overwrite)
 	}
 
 	// Unsupported body/type for POST
@@ -156,31 +178,26 @@ func (h *FSHandler) Post(ctx *fiber.Ctx) error {
 }
 
 // uploadFile handles multipart file uploads into an existing directory.
-func (h *FSHandler) uploadFile(ctx *fiber.Ctx, rel string, overwrite bool) error {
+func (h *FSHandler) handleUploadFile(ctx *fiber.Ctx, rel string) error {
 	mf, err := ctx.MultipartForm()
 	if err != nil {
 		return badRequest(ctx, "invalid multipart form")
 	}
-	files := mf.File["files"]
-	if len(files) == 0 {
-		// Also accept single-file key for compatibility
-		files = mf.File["file"]
+	fileInputs := mf.File["file"]
+	if len(fileInputs) == 0 {
+		return badRequest(ctx, "no file provided")
 	}
-	if len(files) == 0 {
-		return badRequest(ctx, "no files provided")
-	}
+	// create := strings.EqualFold(ctx.FormValue("create"), "true")
+	overwrite := strings.EqualFold(ctx.FormValue("overwrite"), "true")
 
-	toUpload := files[0]
+	toUpload := fileInputs[0]
 	name := filepath.Base(toUpload.Filename)
 	destRel := filepath.Join(rel, name)
 
 	// If overwrite is false, check existence and return 409 with code
 	if !overwrite {
 		if _, err := h.svc.Stat(destRel); err == nil {
-			return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
-				"error": fmt.Sprintf("file '%s' already exists", name),
-				"code":  "FILE_EXISTS",
-			})
+			return ctx.Status(fiber.StatusConflict).JSON(JSONErrFileExists)
 		} else if !os.IsNotExist(err) {
 			return mapLocalFileServiceError(ctx, err)
 		}
@@ -195,25 +212,40 @@ func (h *FSHandler) uploadFile(ctx *fiber.Ctx, rel string, overwrite bool) error
 		return mapLocalFileServiceError(ctx, err)
 	}
 	_ = src.Close()
-	return ctx.Status(fiber.StatusCreated).JSON(fiber.Map{"success": true, "uploaded": name})
+	return ctx.SendStatus(fiber.StatusCreated)
 }
 
-// createSubFolder creates a new subfolder under rel with the provided name.
-func (h *FSHandler) createSubFolder(ctx *fiber.Ctx, rel, name string) error {
-	newRel := filepath.Join(rel, name)
-	if st, err := h.svc.Stat(newRel); err == nil && st != nil {
-		return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "folder exists", "code": "FILE_EXISTS"})
+// handleCreateDirectories creates all directories in the given path under parent dir.
+func (h *FSHandler) handleCreateDirectories(ctx *fiber.Ctx, parentPath, path string) error {
+	fullpath := filepath.Join(parentPath, path)
+	if st, err := h.svc.Stat(fullpath); err == nil && st != nil {
+		return ctx.Status(fiber.StatusConflict).JSON(JSONErrFileExists)
 	} else if err != nil && !os.IsNotExist(err) {
 		return mapLocalFileServiceError(ctx, err)
 	}
-	if err := h.svc.MkdirAll(newRel); err != nil {
+	if err := h.svc.MkdirAll(fullpath); err != nil {
 		return mapLocalFileServiceError(ctx, err)
 	}
-	return ctx.Status(fiber.StatusCreated).JSON(fiber.Map{"success": true, "path": newRel})
+	return ctx.SendStatus(fiber.StatusCreated)
+}
+
+func (h *FSHandler) handlerCreateFile(ctx *fiber.Ctx, rel, name string, overwrite bool) error {
+	destRel := filepath.Join(rel, name)
+	if !overwrite {
+		if _, err := h.svc.Stat(destRel); err == nil {
+			return ctx.Status(fiber.StatusConflict).JSON(JSONErrFileExists)
+		} else if !os.IsNotExist(err) {
+			return mapLocalFileServiceError(ctx, err)
+		}
+	}
+	if err := h.svc.WriteFile(destRel, nil, true); err != nil {
+		return mapLocalFileServiceError(ctx, err)
+	}
+	return ctx.SendStatus(fiber.StatusCreated)
 }
 
 func (h *FSHandler) Put(ctx *fiber.Ctx) error {
-	rel := h.pathFromCtx(ctx)
+	rel := h.pathFromParam(ctx)
 	overwrite := strings.EqualFold(ctx.Query("overwrite"), "true")
 
 	if ctx.Get(fiber.HeaderContentType) != "application/octet-stream" {
@@ -231,7 +263,7 @@ func (h *FSHandler) Put(ctx *fiber.Ctx) error {
 // PATCH /api/v1/fs/*path
 // - Rename file or directory with body {"name": <new_name>}
 func (h *FSHandler) Patch(c *fiber.Ctx) error {
-	rel := h.pathFromCtx(c)
+	rel := h.pathFromParam(c)
 	var body struct {
 		NewName string `json:"name"`
 	}
@@ -250,7 +282,7 @@ func (h *FSHandler) Patch(c *fiber.Ctx) error {
 
 // DELETE /api/v1/fs/*path
 func (h *FSHandler) Delete(c *fiber.Ctx) error {
-	rel := h.pathFromCtx(c)
+	rel := h.pathFromParam(c)
 	recursive := strings.EqualFold(c.Query("recursive"), "true")
 	if recursive {
 		if err := h.svc.DeleteRecursive(rel); err != nil {
@@ -271,10 +303,10 @@ func (h *FSHandler) Delete(c *fiber.Ctx) error {
 // Helper functions
 func mapLocalFileServiceError(c *fiber.Ctx, err error) error {
 	if os.IsNotExist(err) || strings.Contains(err.Error(), "not found") {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Path not found"})
+		return c.Status(fiber.StatusNotFound).JSON(JSONErrFileNotFound)
 	}
 	if os.IsPermission(err) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Permission denied"})
+		return c.Status(fiber.StatusForbidden).JSON(JSONErrNoPermissions)
 	}
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 }
