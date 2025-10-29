@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/url"
@@ -26,6 +27,10 @@ var (
 	JSONErrFileNotFound = fiber.Map{
 		"error": "file not found",
 		"code":  "FILE_NOT_FOUND",
+	}
+	JSONErrDirectoryNotEmpty = fiber.Map{
+		"error": "directory is not empty",
+		"code":  "DIRECTORY_NOT_EMPTY",
 	}
 )
 
@@ -218,11 +223,10 @@ func (h *FSHandler) handleUploadFile(ctx *fiber.Ctx, rel string) error {
 // handleCreateDirectories creates all directories in the given path under parent dir.
 func (h *FSHandler) handleCreateDirectories(ctx *fiber.Ctx, parentPath, path string) error {
 	fullpath := filepath.Join(parentPath, path)
-	if st, err := h.svc.Stat(fullpath); err == nil && st != nil {
+	if _, err := h.svc.Stat(fullpath); err == nil {
 		return ctx.Status(fiber.StatusConflict).JSON(JSONErrFileExists)
-	} else if err != nil && !os.IsNotExist(err) {
-		return mapLocalFileServiceError(ctx, err)
 	}
+
 	if err := h.svc.MkdirAll(fullpath); err != nil {
 		return mapLocalFileServiceError(ctx, err)
 	}
@@ -292,10 +296,6 @@ func (h *FSHandler) Delete(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	}
 	if err := h.svc.Delete(rel); err != nil {
-		// Map directory-not-empty to 400 per design
-		if strings.Contains(err.Error(), "directory not empty") {
-			return c.Status(fiber.StatusBadRequest).JSON(errorMsg("directory not empty (use recursive=true)"))
-		}
 		return mapLocalFileServiceError(c, err)
 	}
 	return c.SendStatus(fiber.StatusOK)
@@ -303,13 +303,16 @@ func (h *FSHandler) Delete(c *fiber.Ctx) error {
 
 // Helper functions
 func mapLocalFileServiceError(c *fiber.Ctx, err error) error {
-	if os.IsNotExist(err) || strings.Contains(err.Error(), "not found") {
+	if os.IsNotExist(err) || errors.Is(err, ErrNotFound) {
 		return c.Status(fiber.StatusNotFound).JSON(JSONErrFileNotFound)
 	}
 	if os.IsPermission(err) {
 		return c.Status(fiber.StatusForbidden).JSON(JSONErrNoPermissions)
 	}
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	if errors.Is(err, ErrDirNotEmpty) {
+		return c.Status(fiber.StatusBadRequest).JSON(JSONErrDirectoryNotEmpty)
+	}
+	return c.Status(fiber.StatusInternalServerError).JSON(errorMsg(err.Error()))
 }
 
 func badRequest(c *fiber.Ctx, msg string) error {

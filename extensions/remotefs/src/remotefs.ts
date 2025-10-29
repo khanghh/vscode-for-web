@@ -152,10 +152,13 @@ export class RemoteFS implements FileSystemProvider {
     );
   }
 
-  async delete(uri: Uri): Promise<void> {
+  async delete(uri: Uri, opts: { recursive: boolean, useTrash: boolean }): Promise<void> {
     const path = uri.path.substring(1);
     const url = `${this.baseUrl}/${path}`;
-    const response = await axios.delete(url, { validateStatus: () => true });
+    const response = await axios.delete(url, {
+      params: { recursive: opts.recursive },
+      validateStatus: () => true
+    });
     if (response.status < 200 || response.status >= 300) {
       throw this.mapError(response);
     }
@@ -166,7 +169,8 @@ export class RemoteFS implements FileSystemProvider {
     const basename = this._basename(uri.path);
     const parent = this._dirname(uri.path);
     const url = `${this.baseUrl}/${parent}`;
-    const response = await axios.post(url, {
+    const body = { path: basename, type: 'directory' };
+    const response = await axios.post(url, body, {
       headers: { 'Content-Type': 'application/json' },
       validateStatus: () => true
     });
