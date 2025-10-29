@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"errors"
@@ -8,16 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
-
-// FileInfo represents a file or directory entry returned in listings.
-type FileInfo struct {
-	Name         string    `json:"name"`
-	Type         FileType  `json:"type"`
-	Size         int64     `json:"size"`
-	LastModified time.Time `json:"lastModified"`
-}
 
 var (
 	ErrPathTraversal  = errors.New("invalid path: traversal outside root is not allowed")

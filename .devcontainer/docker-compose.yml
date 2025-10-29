@@ -9,5 +9,6 @@ services:
     volumes:
       - .:/workdir
     ports:
+      - 3000:3000
       - 8080:8080
     network_mode: bridge

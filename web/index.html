@@ -59,6 +59,7 @@
             "khanghh.remotefs": [
               "fileSearchProvider",
               "textSearchProvider",
+              "ipc"
             ],
           },
           nameShort: "VS Code for Web",
@@ -72,6 +73,10 @@
             resourceUrlTemplate: "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
           },
         },
+        configurationDefaults: {
+          "files.autoSave": "off",
+          "workbench.colorTheme": "Default Dark+",
+        },
         additionalBuiltinExtensions: [
           workbench.URI.from({
             scheme: window.location.protocol === "http:" ? "http" : "https",
@@ -81,7 +86,7 @@
         workspaceProvider: {
           workspace: {
             folderUri: workbench.URI.from({
-              path: "/sample-folder",
+              path: "/workspace",
               scheme: "remotefs"
             })
           },

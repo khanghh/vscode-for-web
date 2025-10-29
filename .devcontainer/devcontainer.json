@@ -1,0 +1,15 @@
+{
+  "name": "Docker Compose Dev Container",
+  "dockerComposeFile": [
+    "./docker-compose.yml"
+  ],
+  "workspaceFolder": "/workdir",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [
+    3000
+  ],
+  "postCreateCommand": "yarn install || npm install", // adjust to your project's install command
+  "postStartCommand": "", 
+  "postAttachCommand": "",
+  "remoteUser": "vscode"
+}

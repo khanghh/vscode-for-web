@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/khanghh/vscode-server/internal/core"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -303,13 +305,13 @@ func (h *FSHandler) Delete(c *fiber.Ctx) error {
 
 // Helper functions
 func mapLocalFileServiceError(c *fiber.Ctx, err error) error {
-	if os.IsNotExist(err) || errors.Is(err, ErrNotFound) {
+	if os.IsNotExist(err) || errors.Is(err, core.ErrNotFound) {
 		return c.Status(fiber.StatusNotFound).JSON(JSONErrFileNotFound)
 	}
 	if os.IsPermission(err) {
 		return c.Status(fiber.StatusForbidden).JSON(JSONErrNoPermissions)
 	}
-	if errors.Is(err, ErrDirNotEmpty) {
+	if errors.Is(err, core.ErrDirNotEmpty) {
 		return c.Status(fiber.StatusBadRequest).JSON(JSONErrDirectoryNotEmpty)
 	}
 	return c.Status(fiber.StatusInternalServerError).JSON(errorMsg(err.Error()))

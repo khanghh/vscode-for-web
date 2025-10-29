@@ -21,7 +21,7 @@ This project builds the web version of VS Code with a custom extension for loadi
 
 This will clone the Visual Studo Code source code (if not present) and build the web version using `gulp vscode-web-min`.
 
-## Extension (planning)
+## Extension
 
 - The `remotefs` extension (planned) will provide files and folders from a user-specified root directory on the server running VS Code Web to the workbench's file tree.
 

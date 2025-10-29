@@ -7,4 +7,6 @@ RUN yarn global add node-gyp@9.3.1
 USER node
 WORKDIR /workdir
 
+EXPOSE 3000 8080
+
 CMD ["sh", "-c", "trap 'exit 0' INT TERM; while true; do sleep 1; done"]
