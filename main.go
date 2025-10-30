@@ -27,8 +27,8 @@ var (
 		Usage: "Address to listen on",
 		Value: ":3000",
 	}
-	workdirFlag = &cli.StringFlag{
-		Name:  "workdir",
+	rootDirFlag = &cli.StringFlag{
+		Name:  "rootdir",
 		Usage: "Directory to serve files to the web IDE",
 		Value: "/tmp",
 	}
@@ -49,7 +49,7 @@ func init() {
 	app.Usage = ""
 	app.Flags = []cli.Flag{
 		debugFlag,
-		workdirFlag,
+		rootDirFlag,
 		webDirFlag,
 		listenFlag,
 	}
@@ -88,12 +88,12 @@ func run(cli *cli.Context) error {
 		log.Fatalf("web directory \"%s\" does not exist", webDir)
 	}
 
-	workDir := cli.String(workdirFlag.Name)
-	if workDir == "" {
+	rootDir := cli.String(rootDirFlag.Name)
+	if rootDir == "" {
 		log.Fatal("must provide work directory")
 	}
 
-	lfs := core.NewLocalFileService(workDir)
+	lfs := core.NewLocalFileService(rootDir)
 
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {

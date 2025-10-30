@@ -13,7 +13,7 @@ COPY ./web .
 RUN ./build.sh --all
 
 # Build golang server
-FROM golang:1.25.1-alpine AS go-builder
+FROM golang:1.25-alpine AS go-builder
 
 RUN apk add --no-cache git ca-certificates tzdata && update-ca-certificates
 
@@ -40,5 +40,7 @@ COPY --from=go-builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=go-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=go-builder /workdir/server /app/server
 COPY --from=web-builder /workdir/dist /app/dist
+
+EXPOSE 3000
 
 ENTRYPOINT ["/app/server"]
