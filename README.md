@@ -24,8 +24,8 @@ A minimal VS Code for Web bundle with a custom RemoteFS extension, powered by a 
    ```
 
 3. **Open in browser**  
-   Visit [http://localhost:3000](http://localhost:3000) to access vscode on the browser
-
+   Visit [http://localhost:3000](http://localhost:3000) to access vscode on your browser
+    <img src="https://github.com/khanghh/vscode-for-web/blob/screenshots/screenshot.png?raw=true" width="100%"> 
 ## 📋 Prerequisites
 
 - **Go** 1.25+ (recommended 1.23+)
