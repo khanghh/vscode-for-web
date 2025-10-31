@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org/)
 [![Node.js Version](https://img.shields.io/badge/Node.js-16+-green.svg)](https://nodejs.org/)
 
-A minimal VS Code for Web bundle with a custom RemoteFS extension, powered by a lightweight Go backend. Run VS Code in your browser with remote file access on your browser!
+A lightweight self-hosted VS Code for Web that lets you browse and edit projects on your own server, powered by a minimal Go backend.
 
 ## ⚡ Quick Start
 
@@ -26,30 +26,35 @@ A minimal VS Code for Web bundle with a custom RemoteFS extension, powered by a 
 3. **Open in browser**  
    Visit [http://localhost:3000](http://localhost:3000) to access vscode on your browser
     <img src="https://github.com/khanghh/vscode-for-web/blob/screenshots/screenshot.png?raw=true" width="100%"> 
-## 📋 Prerequisites
+## ✅ Requirements
 
-- **Go** 1.25+ (recommended 1.23+)
+Required:
+
+- **Go** 1.25+ (recommended 1.22+)
 - **Node.js** 16+ and **Yarn**
 - **Git** and **Bash**
 
-*Optional:*  
-- `make` for build shortcuts  
+Optional:
+
+- `make` for build shortcuts
 - Docker for containerized deployment
 
 ## 📜 Makefile Shortcuts
 
-Speed up your workflow with these targets:
+Useful Makefile targets for common tasks:
 
 - `make server` → Build Go binary to `build/bin/server`
 - `make vscode` → Build VS Code web to `build/bin/dist`
 - `make extensions` → Build extensions to `build/bin/dist/extensions`
 - `make all` → Build everything at once
 
+## 🎯 Roadmap
+ ✅ Remote file explorer (remotefs) — implemented. Browse, open and edit files from the server.  
+ ❌ Remote terminal — planned. Provide full pty-backed interactive shells over websocket.
+
 ## 🤝 Contributing
 
 Pull requests are welcome! For major changes, please open an issue first to discuss what you’d like to change.
-
-### Bug Reports & Feature Requests
 
 Please use the issue tracker to report bugs or request new features.
 
