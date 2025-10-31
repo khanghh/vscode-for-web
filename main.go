@@ -30,7 +30,7 @@ var (
 	workdirFlag = &cli.StringFlag{
 		Name:  "workdir",
 		Usage: "Directory to serve files to the web IDE",
-		Value: "/tmp/remotefs",
+		Value: "/tmp",
 	}
 	webDirFlag = &cli.StringFlag{
 		Name:  "webdir",
@@ -49,6 +49,9 @@ func init() {
 	app.Usage = ""
 	app.Flags = []cli.Flag{
 		debugFlag,
+		workdirFlag,
+		webDirFlag,
+		listenFlag,
 	}
 	app.Commands = []*cli.Command{
 		{

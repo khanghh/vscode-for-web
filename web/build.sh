@@ -101,7 +101,7 @@ build_extensions() {
 
     echo "Building extension $ext"
 
-    ext_out_dir="$OUT_DIR/$ext"
+    ext_out_dir="$OUT_DIR/extensions/$ext"
     (cd "extensions/$ext" && yarn install --frozen-lockfile && yarn package-web --output-path ${ext_out_dir})
     if [ -f "extensions/$ext/package.json" ]; then
       cp "extensions/$ext/package.json" "$ext_out_dir/package.json"
