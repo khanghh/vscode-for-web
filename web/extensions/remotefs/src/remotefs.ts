@@ -31,7 +31,9 @@ export class RemoteFS implements FileSystemProvider {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = `http://localhost:3000/api/v1/fs`;
+    const globalAny: any = (typeof globalThis !== 'undefined') ? globalThis : {};
+    const origin =  globalAny.origin || 'http://localhost:3000';
+    this.baseUrl = `${origin.replace(/\/$/, '')}/api/v1/fs`;
     this.disposable = Disposable.from(
       workspace.registerFileSystemProvider(RemoteFS.scheme, this, { isCaseSensitive: true }),
     );
