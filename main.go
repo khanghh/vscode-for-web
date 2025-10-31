@@ -89,6 +89,10 @@ func run(cli *cli.Context) error {
 	}
 
 	rootDir := cli.String(rootDirFlag.Name)
+	// remove trailing slash (but keep "/" as-is)
+	if len(rootDir) > 1 && rootDir[len(rootDir)-1] == '/' {
+		rootDir = rootDir[:len(rootDir)-1]
+	}
 	if rootDir == "" {
 		log.Fatal("must provide work directory")
 	}
@@ -122,6 +126,7 @@ func run(cli *cli.Context) error {
 		log.Fatal(err)
 	}
 
+	log.Printf("Serving VSCode web with root directory %s at %s\n", rootDir, listenAddr)
 	return app.Listen(listenAddr)
 }
 
